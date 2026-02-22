@@ -89,11 +89,9 @@ const dateText = (() => {
 
   /* -------------------------------
     IMAGE + CAROUSEL SPACING FIX
-   - text <-> media = 40px
-   - media <-> media = 40px (NOT 80)
 -------------------------------- */
 
-  /* never apply spacing to <img> */
+  /* never apply spacing to img */
   :global(.post-content img) {
     width: 100%;
     border-radius: var(--br);
@@ -107,6 +105,20 @@ const dateText = (() => {
     margin: 40px auto !important;
     cursor: zoom-in;
   }
+
+  :global(.post-content figure.pt-image) {
+  margin: 40px auto !important;
+  cursor: zoom-in;
+}
+
+/* no margin on footnote */
+:global(.post-content .footnote-layer--right figure.pt-image),
+:global(.post-content .footnote-layer--left figure.pt-image),
+:global(.post-content .margin-note figure.pt-image),
+:global(.post-content .inline-footnote figure.pt-image) {
+  margin:10px 0 10px 0 !important;
+  cursor: default;
+}
 
   /* carousel wrapper controls spacing (includes caption) */
   :global(.post-content .pt-carousel-wrap) {
@@ -201,7 +213,7 @@ const dateText = (() => {
   :global(.post-content .footnote-layer--right),
   :global(.post-content .footnote-layer--left) {
     position: absolute;
-    top: 0;
+    top: 5px;
     width: calc((100vw - var(--column-width)) / 2 - 26px);
     pointer-events: none;
     z-index: 10;
