@@ -17,217 +17,257 @@ const data = await client.fetch(`
 
 const images = (data?.featuredImages ?? []).filter((img) => img?.asset);
 
-// Build LOW + HI urls from the SAME data
 const lowResUrls = images.map((img) =>
   urlFor(img.asset).width(64).quality(20).url()
 );
 
+/* Lower hi-res quality to reduce transferred bytes */
 const hiResUrls = images.map((img) =>
-  urlFor(img.asset).width(1920).quality(85).url()
+  urlFor(img.asset).width(1920).quality(75).url()
 );
 ---
 
-<Layout>
+<Layout title="Home">
   <div class="image-scroll" id="imageScroll">
-    {images.map((img, i) => {
-      const w = img.asset?.metadata?.dimensions?.width ?? 1;
-      const h = img.asset?.metadata?.dimensions?.height ?? 1;
-  
+    {images.map((img, index) => {
+      const intrinsicWidth = img.asset?.metadata?.dimensions?.width ?? 1;
+      const intrinsicHeight = img.asset?.metadata?.dimensions?.height ?? 1;
+
       return (
         <img
           class="scroll-image is-loading"
-          src={lowResUrls[i]}
-          data-hi={hiResUrls[i]}
+          src={lowResUrls[index]}
+          data-hi={hiResUrls[index]}
           alt={img.alt ?? "Image"}
-          width={w}
-          height={h}
+          width={intrinsicWidth}
+          height={intrinsicHeight}
           loading="lazy"
           decoding="async"
         />
       );
     })}
   </div>
-  
 </Layout>
-
 
 <script>
   (function () {
     const cleanupMap = new WeakMap();
 
-    function findScroller(el) {
-      let p = el.parentElement;
-      while (p) {
-        const oy = getComputedStyle(p).overflowY;
-        if ((oy === "auto" || oy === "scroll") && p.scrollHeight > p.clientHeight)
-          return p;
-        p = p.parentElement;
+    function getScrollContainer(containerElement) {
+      const preferredScroller = document.getElementById("mainScroller");
+      if (preferredScroller instanceof HTMLElement) return preferredScroller;
+
+      let parentElement = containerElement.parentElement;
+      while (parentElement) {
+        const overflowYValue = getComputedStyle(parentElement).overflowY;
+        const canScrollVertically = overflowYValue === "auto" || overflowYValue === "scroll";
+        const hasScrollableContent = parentElement.scrollHeight > parentElement.clientHeight;
+
+        if (canScrollVertically && hasScrollableContent) return parentElement;
+        parentElement = parentElement.parentElement;
       }
-      return null; // viewport
+
+      return null;
     }
 
     function init() {
-      const container = document.getElementById("imageScroll");
-      if (!(container instanceof HTMLElement)) return;
+      const imageContainer = document.getElementById("imageScroll");
+      if (!(imageContainer instanceof HTMLElement)) return;
 
-      if (container.dataset.inf3Inited === "1") return;
-      container.dataset.inf3Inited = "1";
+      if (imageContainer.dataset.inf3Inited === "1") return;
+      imageContainer.dataset.inf3Inited = "1";
 
-      const originals = Array.from(container.querySelectorAll("img.scroll-image"));
-      if (!originals.length) return;
+      const initialImages = Array.from(imageContainer.querySelectorAll("img.scroll-image"));
+      if (!initialImages.length) return;
 
-      const scroller = findScroller(container);
+      const scrollContainer = getScrollContainer(imageContainer);
 
-      function getScrollTop() {
-        return scroller ? scroller.scrollTop : window.scrollY;
-      }
-      function setScrollTop(v) {
-        if (scroller) scroller.scrollTop = v;
-        else window.scrollTo(0, v);
+      function getScrollOffset() {
+        return scrollContainer ? scrollContainer.scrollTop : window.scrollY;
       }
 
-      // Low -> hi near viewport
-      const hiObserver = new IntersectionObserver(
+      function setScrollOffset(nextScrollOffset) {
+        if (scrollContainer) scrollContainer.scrollTop = nextScrollOffset;
+        else window.scrollTo(0, nextScrollOffset);
+      }
+
+      /* Share hi-res preloads by URL to limit repeated fetch/decode work */
+      const hiResLoadCache = new Map();
+
+      function preloadHiResOnce(hiResUrl) {
+        const cachedPromise = hiResLoadCache.get(hiResUrl);
+        if (cachedPromise) return cachedPromise;
+
+        const loadPromise = new Promise((resolve, reject) => {
+          const preloadImage = new Image();
+          preloadImage.onload = () => resolve(undefined);
+          preloadImage.onerror = () => reject(new Error("hi-res preload failed"));
+          preloadImage.src = hiResUrl;
+        });
+
+        hiResLoadCache.set(hiResUrl, loadPromise);
+        return loadPromise;
+      }
+
+      /* Upgrade images near viewport from low-res to hi-res */
+      const hiResObserver = new IntersectionObserver(
         (entries) => {
-          for (const e of entries) {
-            if (!e.isIntersecting) continue;
-            const img = e.target;
-            if (!(img instanceof HTMLImageElement)) continue;
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
 
-            const hi = img.getAttribute("data-hi");
-            if (!hi || img.dataset.upgraded === "1") {
-              hiObserver.unobserve(img);
+            const imageElement = entry.target;
+            if (!(imageElement instanceof HTMLImageElement)) continue;
+
+            const hiResUrl = imageElement.getAttribute("data-hi");
+            if (!hiResUrl || imageElement.dataset.upgraded === "1") {
+              hiResObserver.unobserve(imageElement);
               continue;
             }
 
-            img.dataset.upgraded = "1";
+            imageElement.dataset.upgraded = "1";
 
-            const pre = new Image();
-            pre.onload = () => {
-              img.src = hi;
-              img.classList.remove("is-loading");
-              hiObserver.unobserve(img);
-            };
-            pre.src = hi;
+            preloadHiResOnce(hiResUrl)
+              .then(() => {
+                imageElement.src = hiResUrl;
+                imageElement.classList.remove("is-loading");
+                hiResObserver.unobserve(imageElement);
+              })
+              .catch(() => {
+                delete imageElement.dataset.upgraded;
+              });
           }
         },
-        { root: scroller, rootMargin: "300px 0px", threshold: 0 }
+        { root: scrollContainer, rootMargin: "300px 0px", threshold: 0 }
       );
 
-      function observeHi(scope) {
-        scope.querySelectorAll("img.scroll-image").forEach((img) => {
-          if (!(img instanceof HTMLImageElement)) return;
-          if (!img.getAttribute("data-hi")) return;
-          if (img.dataset.upgraded === "1") return;
-          hiObserver.observe(img);
+      function observeHiResImages(scopeElement) {
+        scopeElement.querySelectorAll("img.scroll-image").forEach((imageElement) => {
+          if (!(imageElement instanceof HTMLImageElement)) return;
+          if (!imageElement.getAttribute("data-hi")) return;
+          if (imageElement.dataset.upgraded === "1") return;
+          hiResObserver.observe(imageElement);
         });
       }
 
-      // Wrap the original images into a "block"
-      const block = document.createElement("div");
-      block.className = "image-scroll-block";
-      while (container.firstChild) block.appendChild(container.firstChild);
-      container.appendChild(block);
+      const middleBlockElement = document.createElement("div");
+      middleBlockElement.className = "image-scroll-block";
 
-      const before = block.cloneNode(true);
-      const after = block.cloneNode(true);
+      while (imageContainer.firstChild) {
+        middleBlockElement.appendChild(imageContainer.firstChild);
+      }
+      imageContainer.appendChild(middleBlockElement);
 
-      if (!(before instanceof HTMLElement) || !(after instanceof HTMLElement)) return;
+      const beforeBlockClone = middleBlockElement.cloneNode(true);
+      const afterBlockClone = middleBlockElement.cloneNode(true);
 
-      before.setAttribute("aria-hidden", "true");
-      after.setAttribute("aria-hidden", "true");
+      if (!(beforeBlockClone instanceof HTMLElement) || !(afterBlockClone instanceof HTMLElement)) return;
 
-      container.insertBefore(before, block);
-      container.appendChild(after);
+      beforeBlockClone.setAttribute("aria-hidden", "true");
+      afterBlockClone.setAttribute("aria-hidden", "true");
 
-      observeHi(container);
+      imageContainer.insertBefore(beforeBlockClone, middleBlockElement);
+      imageContainer.appendChild(afterBlockClone);
+
+      observeHiResImages(imageContainer);
 
       function waitForLayout() {
         return new Promise((resolve) => {
-          const start = performance.now();
-          (function check() {
-            if (block.getBoundingClientRect().height > 0) {
+          const startTime = performance.now();
+
+          (function checkLayout() {
+            const measuredHeight = middleBlockElement.getBoundingClientRect().height;
+
+            if (measuredHeight > 0) {
               resolve(undefined);
               return;
             }
-            if (performance.now() - start > 2000) {
+
+            if (performance.now() - startTime > 2000) {
               resolve(undefined);
               return;
             }
-            requestAnimationFrame(check);
+
+            requestAnimationFrame(checkLayout);
           })();
         });
       }
 
-      let ticking = false;
+      let recenterTickScheduled = false;
 
       function recenterIfNeeded() {
-        if (ticking) return;
-        ticking = true;
+        if (recenterTickScheduled) return;
+        recenterTickScheduled = true;
 
         requestAnimationFrame(() => {
-          ticking = false;
+          recenterTickScheduled = false;
 
-          const h = block.getBoundingClientRect().height;
-          if (!h) return;
+          const middleBlockHeight = middleBlockElement.getBoundingClientRect().height;
+          if (!middleBlockHeight) return;
 
-          const y = getScrollTop();
+          const currentScrollOffset = getScrollOffset();
 
-          // Keep scroll within the middle third: [0.5h, 1.5h]
-          if (y < 0.5 * h) setScrollTop(y + h);
-          else if (y > 1.5 * h) setScrollTop(y - h);
+          const lowerBound = 0.5 * middleBlockHeight;
+          const upperBound = 1.5 * middleBlockHeight;
+
+          if (currentScrollOffset < lowerBound) {
+            setScrollOffset(currentScrollOffset + middleBlockHeight);
+          } else if (currentScrollOffset > upperBound) {
+            setScrollOffset(currentScrollOffset - middleBlockHeight);
+          }
         });
       }
 
       function addScrollListener() {
-        const target = scroller || window;
-        target.addEventListener("scroll", recenterIfNeeded, { passive: true });
-        return () => target.removeEventListener("scroll", recenterIfNeeded);
+        const scrollTarget = scrollContainer || window;
+        scrollTarget.addEventListener("scroll", recenterIfNeeded, { passive: true });
+        return () => scrollTarget.removeEventListener("scroll", recenterIfNeeded);
       }
 
-      let removeScroll = null;
+      let removeScrollListener = null;
 
       waitForLayout().then(() => {
-        // Start in the middle block so up/down both work immediately
-        const h = block.getBoundingClientRect().height;
-        setScrollTop(h);
+        const middleBlockHeight = middleBlockElement.getBoundingClientRect().height;
 
-        removeScroll = addScrollListener();
+        setScrollOffset(middleBlockHeight);
+
+        requestAnimationFrame(() => setScrollOffset(middleBlockHeight));
+
+        removeScrollListener = addScrollListener();
       });
 
       function destroy() {
-        if (typeof removeScroll === "function") removeScroll();
-        hiObserver.disconnect();
+        if (typeof removeScrollListener === "function") removeScrollListener();
+        hiResObserver.disconnect();
 
-        // Restore DOM to original (middle) block only
-        if (before.parentNode) before.parentNode.removeChild(before);
-if (after.parentNode) after.parentNode.removeChild(after);rootMargin: "200px 0px"
+        if (beforeBlockClone.parentNode) beforeBlockClone.parentNode.removeChild(beforeBlockClone);
+        if (afterBlockClone.parentNode) afterBlockClone.parentNode.removeChild(afterBlockClone);
 
-        // Unwrap: move children back into container (optional cleanliness)
-        const middle = container.querySelector(".image-scroll-block");
-        if (middle instanceof HTMLElement) {
-          while (middle.firstChild) container.insertBefore(middle.firstChild, middle);
-          middle.remove();
+        const existingMiddleBlock = imageContainer.querySelector(".image-scroll-block");
+        if (existingMiddleBlock instanceof HTMLElement) {
+          while (existingMiddleBlock.firstChild) {
+            imageContainer.insertBefore(existingMiddleBlock.firstChild, existingMiddleBlock);
+          }
+          existingMiddleBlock.remove();
         }
 
-        delete container.dataset.inf3Inited;
-        cleanupMap.delete(container);
+        delete imageContainer.dataset.inf3Inited;
+        cleanupMap.delete(imageContainer);
       }
 
-      cleanupMap.set(container, destroy);
+      cleanupMap.set(imageContainer, destroy);
     }
 
     function cleanup() {
-      const container = document.getElementById("imageScroll");
-      if (!(container instanceof HTMLElement)) return;
-      const fn = cleanupMap.get(container);
-      if (typeof fn === "function") fn();
+      const imageContainer = document.getElementById("imageScroll");
+      if (!(imageContainer instanceof HTMLElement)) return;
+
+      const cleanupFn = cleanupMap.get(imageContainer);
+      if (typeof cleanupFn === "function") cleanupFn();
     }
 
-    // Bind Astro lifecycle once (no custom window props)
-    const root = document.documentElement;
-    if (root.dataset.inf3Bound !== "1") {
-      root.dataset.inf3Bound = "1";
+    const rootElement = document.documentElement;
+    if (rootElement.dataset.inf3Bound !== "1") {
+      rootElement.dataset.inf3Bound = "1";
       document.addEventListener("astro:page-load", init);
       document.addEventListener("astro:after-swap", init);
       document.addEventListener("astro:before-swap", cleanup);
@@ -236,13 +276,6 @@ if (after.parentNode) after.parentNode.removeChild(after);rootMargin: "200px 0px
     init();
   })();
 </script>
-
-
-
-
-
-
-
 
 <style lang="scss" is:global>
   html,
@@ -263,9 +296,7 @@ if (after.parentNode) after.parentNode.removeChild(after);rootMargin: "200px 0px
   }
 
   .scroll-image.is-loading {
-  filter: blur(6px);
-  transform: scale(1.01);
-}
-
-
+    filter: blur(6px);
+    transform: scale(1.01);
+  }
 </style>
