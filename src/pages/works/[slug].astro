@@ -46,8 +46,8 @@ const { slug } = Astro.params;
 
 // ✅ Try Sanity first
 const post = await getPostBySlug(slug);
-// const isPublic = !!post && post.isHidden !== true;
-const isPublic = !!post;
+const isHidden = !!post?.isHidden;
+const isPublic = !!post && !isHidden;
 
 // ✅ Pagination + creditbox only for public Sanity posts
 let prev = null;
@@ -115,7 +115,9 @@ const hasCredit = !!post?.creditbox?.length;
 ---
 
 {isPublic ? (
-  <Layout title={`Dzastins Zavadzkis—${post.title}`}>
+  <Layout 
+    title={`Dzastins Zavadzkis—${post.title}`}
+    description={`Project of Dzastins Zavadzkis, ${post.title}`}>
     <NavForPost slot="overlay" title={post.title} />
 
     <div class="post-page">
@@ -123,24 +125,22 @@ const hasCredit = !!post?.creditbox?.length;
         <Post post={post} />
 
         <nav class="post-pagination" aria-label="Work post navigation">
-          {/* LEFT */}
-          {hasCredit ? (
-            <div class="creditbox" aria-label="Credits">
-              <PortableText value={post.creditbox} />
-            </div>
-          ) : null}
+          <div class="post-pagination__left">
+            {hasCredit ? (
+              <div class="creditbox" aria-label="Credits">
+                <PortableText value={post.creditbox} />
+              </div>
+            ) : null}
+          </div>
 
-          {/* RIGHT */}
-          {prev ? (
-            <a
-              class="prev-only"
-              href={`/works/${prev.slug}`}
-              aria-label="Previous project"
-            >
-              <span class="label">{prev.title}</span>
-              <span class="arrow">→</span>
-            </a>
-          ) : null}
+          <div class="post-pagination__right">
+            {prev ? (
+              <a class="prev-only" href={`/works/${prev.slug}`} aria-label="Previous project">
+                <span class="label">{prev.title}</span>
+                <span class="arrow">→</span>
+              </a>
+            ) : null}
+          </div>
         </nav>
       </Feed>
     </div>
@@ -210,113 +210,124 @@ const hasCredit = !!post?.creditbox?.length;
     </script>
 
     {/* ✅ localStorage unlock check */}
-    <script is:inline>
-      (function () {
-        const KEY = "private_ui_until";
-        const until = Number(localStorage.getItem(KEY) || 0);
-        const unlocked = Date.now() < until;
+<script is:inline>
+  (function () {
+    const KEY = "private_ui_until";
+    const until = Number(localStorage.getItem(KEY) || 0);
+    const unlocked = Date.now() < until;
 
-        const lockedEl = document.querySelector("[data-private-locked]");
-        const postEl = document.querySelector("[data-private-post]");
+    // ✅ If not unlocked, bounce back to Works and open modal
+    if (!unlocked) {
+      window.location.replace("/works?unlock=open");
+      return;
+    }
 
-        if (!lockedEl || !postEl) return;
+    // ✅ If unlocked, show private post
+    const lockedEl = document.querySelector("[data-private-locked]");
+    const postEl = document.querySelector("[data-private-post]");
+    if (!lockedEl || !postEl) return;
 
-        if (unlocked) {
-          lockedEl.style.display = "none";
-          postEl.style.display = "block";
-        } else {
-          lockedEl.style.display = "block";
-          postEl.style.display = "none";
-        }
-      })();
-    </script>
+    lockedEl.style.display = "none";
+    postEl.style.display = "block";
+  })();
+</script>
   </Layout>
 )}
 
 <style lang="scss">
   .post-page {
-    padding-bottom: 40px;
-  }
+  padding-bottom: 40px;
+}
 
-  .post-pagination {
-    margin-top: 40px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 10px;
-  }
+.post-pagination {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: 1fr auto; /* left fills, right hugs */
+  align-items: flex-start;
+  column-gap: 10px;
+}
 
-  .prev-only {
-    height: 38px;
-    border-radius: var(--br);
-    padding: 0 14px;
-    text-decoration: none;
-    color: #000;
+.post-pagination__left {
+  min-width: 0; /* allow left column to wrap */
+}
 
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
+.post-pagination__right {
+  justify-self: end;      /* ✅ always right */
+  min-width: max-content; /* ✅ prevents 1-letter shrink */
+}
 
-    max-width: 48%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.prev-only {
+  height: 38px;
+  border-radius: var(--br);
+  padding: 0 14px;
+  text-decoration: none;
+  color: #000;
 
-    box-shadow: var(--box-shadow);
-    backdrop-filter: var(--backdrop-filter);
-    -webkit-backdrop-filter: var(--backdrop-filter);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 
-    transition: box-shadow 0.15s ease, backdrop-filter 0.15s ease;
-  }
+  width: max-content;
+  max-width: clamp(220px, 42vw, 520px); /* ✅ stable truncation */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
-  .prev-only:hover {
-    box-shadow: 0 0 3px rgba(122, 122, 122, 0.4) inset;
-    backdrop-filter: var(--backdrop-filter-pressed);
-    -webkit-backdrop-filter: var(--backdrop-filter-pressed);
-  }
+  box-shadow: var(--box-shadow);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
 
-  .prev-only .label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  transition: box-shadow 0.15s ease, backdrop-filter 0.15s ease;
+}
 
-  .prev-only .arrow {
-    flex: 0 0 auto;
-  }
+.prev-only:hover {
+  box-shadow: 0 0 3px rgba(122, 122, 122, 0.4) inset;
+  backdrop-filter: var(--backdrop-filter-pressed);
+  -webkit-backdrop-filter: var(--backdrop-filter-pressed);
+}
 
-  .creditbox {
-    max-width: 48%;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: unset;
-    font-size: calc(var(--fz) * 0.6);
-    line-height: calc(var(--lh) * 0.65);
-    text-align: left;
-  }
+.prev-only .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-  .creditbox :global(p) {
-    margin: 0;
-  }
+.prev-only .arrow {
+  flex: 0 0 auto;
+}
 
-  .creditbox :global(a) {
-    text-decoration: underline;
-    color: var(--gray);
-  }
+.creditbox {
+  max-width: 48%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  font-size: calc(var(--fz) * 0.6);
+  line-height: calc(var(--lh) * 0.65);
+  text-align: left;
+}
 
-  /* ✅ Private lock wrapper */
-  .private-wrapper {
-    margin-top: 200px;
+.creditbox :global(p) {
+  margin: 0;
+}
 
-  }
+.creditbox :global(a) {
+  text-decoration: underline;
+  color: var(--gray);
+}
 
-  .private-locked {
-    display: none;
-    text-align: center;
-    font-size: calc(var(--fz) * 0.75);
-    opacity: 0.8;
-  }
+/* ✅ Private lock wrapper */
+.private-wrapper {
+  margin-top: 200px;
+}
 
-  .private-post {
-    display: none;
-  }
+.private-locked {
+  display: none;
+  text-align: center;
+  font-size: calc(var(--fz) * 0.75);
+  opacity: 0.8;
+}
+
+.private-post {
+  display: none;
+}
+ 
 </style>

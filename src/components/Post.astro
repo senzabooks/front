@@ -159,6 +159,27 @@ const dateText = (() => {
 
   /* -------------------------------
     CAROUSEL IMAGES
+   ✅ FOOTNOTES: keep images at 8px auto (their inline margin)
+   - we only override the 40px rule for figures inside notes/layers
+-------------------------------- */
+  :global(.post-content .footnote-note figure.pt-image),
+  :global(.post-content .inline-footnote figure.pt-image),
+  :global(.post-content .margin-note figure.pt-image),
+  :global(.post-content .footnote-layer--right figure.pt-image),
+  :global(.post-content .footnote-layer--left figure.pt-image) {
+    margin: 8px auto !important;
+    cursor: default !important;
+  }
+
+  /* (optional) if a carousel ever appears inside notes, keep it tight */
+  :global(.post-content .footnote-note .pt-carousel-wrap),
+  :global(.post-content .inline-footnote .pt-carousel-wrap),
+  :global(.post-content .margin-note .pt-carousel-wrap) {
+    margin: 8px 0 !important;
+  }
+
+  /* -------------------------------
+   ✅ CAROUSEL IMAGES
 -------------------------------- */
   :global(.post-content .pt-carousel-img) {
     position: absolute;

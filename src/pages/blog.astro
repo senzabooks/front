@@ -5,7 +5,9 @@ import { getPosts } from "../data/works";
 const blogPosts = await getPosts("blog", "selectedBlogPosts");
 ---
 
-<Layout title="Dzastins Zavadzkis—Blog">
+<Layout 
+  title="Dzastins Zavadzkis—Blog"
+  description="Blog of Dzastins Zavadzkis.">
   <div class="works-page">
     <div class="blog-feed">
       {blogPosts.map((blogPost) => <BlogPreview blogPost={blogPost} />)}

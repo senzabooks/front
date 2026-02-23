@@ -4,7 +4,12 @@ import "../styles/reset.scss";
 import "../styles/global.scss";
 import { ViewTransitions } from "astro:transitions";
 
-const { title } = Astro.props;
+const {
+  title = "Dzastins Zavadzkis",
+  description = "Portfolio of Dzastins Zavadskis, an architectural designer based in Rotterdam.",
+} = Astro.props;
+
+const canonical = Astro.url;
 
 const path = Astro.url.pathname;
 const clean = path === "/" ? "/" : path.replace(/\/+$/, ""); // remove trailing slash
@@ -22,17 +27,30 @@ const isDetail =
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-
     <link
       rel="preload"
-      href="/fonts/neue.ttf"
+      href="/fonts/neue.woff2"
       as="font"
-      type="font/ttf"
-      crossorigin
+      type="font/woff2"
+      crossorigin="anonymous"
     />
 
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    <link rel="canonical" href={canonical} />
+    <meta name="description" content={description} />
+
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:type" content="website" />
+
+    <!-- <meta property="og:image" content={new URL(image, Astro.url).toString()} /> -->
+
+    <!-- <meta name="twitter:card" content="summary_large_image" /> -->
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <!-- <meta name="twitter:image" content={new URL(image, Astro.url).toString()} /> -->
 
     <!-- Material Symbols (thin-ish) -->
     <link
@@ -160,7 +178,7 @@ const isDetail =
       transform-origin: bottom right;
       transform: rotate(-90deg) translateX(100%);
       flex-direction: row-reverse;
-      gap:12px;
+      gap: 12px;
     }
   }
 

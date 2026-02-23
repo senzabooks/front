@@ -8,7 +8,9 @@ const aboutPost = await getAboutPost();
 console.log("aboutPost:", aboutPost);
 ---
 
-<Layout title="Dzastins Zavadzkis—About">
+<Layout 
+  title="Dzastins Zavadzkis—About"
+  description="About Dzastins Zavadzkis.">
   <div class="about-page">
     <Feed type="about">
       <Post post={aboutPost} />

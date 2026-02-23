@@ -81,7 +81,10 @@ const displayTitle =
   post.title && post.title.trim() !== "" ? post.title : postDate;
 ---
 
-<Layout title={`Dzastins Zavadzkis—${postDate}`}>
+<Layout
+  title={`Dzastins Zavadzkis—${postDate}`}
+  description={`Blogpost of Dzastins Zavadzkis, ${post.title}`}
+>
   <NavForPost title={displayTitle} slot="overlay" />
 
   <div class="post-page">
@@ -91,15 +94,19 @@ const displayTitle =
       {
         prev ? (
           <nav class="post-pagination" aria-label="Blog post navigation">
-            <a
-              class="prev-only"
-              href={`/blog/${prev.slug}`}
-              aria-label="Previous post"
-              title={prev.title}
-            >
-              <span class="label">{prev.title}</span>
-              <span class="arrow">→</span>
-            </a>
+            <div class="post-pagination__left" />
+
+            <div class="post-pagination__right">
+              <a
+                class="prev-only"
+                href={`/blog/${prev.slug}`}
+                aria-label="Previous post"
+                title={prev.title}
+              >
+                <span class="label">{prev.title}</span>
+                <span class="arrow">→</span>
+              </a>
+            </div>
           </nav>
         ) : null
       }
@@ -114,8 +121,19 @@ const displayTitle =
 
   .post-pagination {
     margin-top: 40px;
-    display: flex;
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: 1fr auto; /* left fills, right hugs */
+    align-items: start;
+    column-gap: 10px;
+  }
+
+  .post-pagination__left {
+    min-width: 0;
+  }
+
+  .post-pagination__right {
+    justify-self: end; /* ✅ pinned right */
+    min-width: max-content; /* ✅ no collapsing */
   }
 
   .prev-only {
@@ -129,7 +147,8 @@ const displayTitle =
     align-items: center;
     gap: 10px;
 
-    max-width: 100%;
+    width: max-content;
+    max-width: clamp(220px, 42vw, 520px);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

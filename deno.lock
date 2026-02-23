@@ -13,6 +13,7 @@
       "dependencies": [
         "npm:@astrojs/netlify@^6.6.3",
         "npm:@astrojs/react@^4.4.0",
+        "npm:@astrojs/sitemap@^3.7.0",
         "npm:@portabletext/react@^4.0.3",
         "npm:@portabletext/to-html@3",
         "npm:@sanity/astro@^3.2.10",
