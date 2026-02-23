@@ -2,44 +2,35 @@ import { useEffect, useRef, useState } from "react";
 import { PortableText } from "@portabletext/react";
 import { urlFor } from "../lib/sanity";
 
-/** Stable “random” side (same footnote always picks same side across renders) */
-function stableRandomSide(key) {
-  let h = 0;
-  const s = String(key ?? "");
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h % 2 === 0 ? "right" : "left";
-}
+/* -------------------------------
+   IDS + SIDE PICK
+-------------------------------- */
 
-function hashId(str) {
-  let h = 2166136261;
-  const s = String(str ?? "");
+/* stable id from content (FNV-1a 32-bit) */
+function fnv1a32(input) {
+  const s = String(input ?? "");
+  let h = 0x811c9dc5; // 2166136261
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return `fn-${(h >>> 0).toString(36)}`;
-}
-
-function hash32(str) {
-  // FNV-1a 32-bit
-  let h = 2166136261;
-  const s = String(str ?? "");
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+    h = Math.imul(h, 0x01000193); // 16777619
   }
   return h >>> 0;
 }
 
-/* -------------------------------------------------------
-   Image renderer (supports contentImage + plain image)
-------------------------------------------------------- */
-function SanityImage({ value }) {
-  // Supports:
-  // - Sanity contentImage: { _type:"contentImage", size, image:{asset, alt, caption} }
-  // - Sanity plain image/captionedImage: { asset, alt, caption }
-  // - Supabase: { image:{ url, alt, caption } } or { url, alt, caption }
+/* short DOM-safe id */
+function footnoteId(key) {
+  return `fn-${fnv1a32(key).toString(36)}`;
+}
 
+/* stable left/right based on key */
+function footnoteSide(key) {
+  return (fnv1a32(key) & 1) === 1 ? "right" : "left";
+}
+
+/* -------------------------------
+   IMAGE RENDERER
+-------------------------------- */
+function SanityImage({ value }) {
   const img = value?.image ?? value;
 
   const size =
@@ -48,7 +39,6 @@ function SanityImage({ value }) {
   const alt = img?.alt || img?.caption || "";
   const caption = img?.caption || null;
 
-  // ✅ pick src from Supabase first, then Sanity asset
   let src = img?.url || "";
   if (!src && img?.asset) {
     src = urlFor(img.asset).width(1800).auto("format").quality(85).url();
@@ -82,14 +72,11 @@ function SanityImage({ value }) {
   );
 }
 
-
-/* -------------------------------------------------------
-   Link mark (no href => no anchor, avoids scroll-to-top)
-------------------------------------------------------- */
+/* -------------------------------
+   LINK MARK
+-------------------------------- */
 const LinkMark = ({ children, value }) => {
   const href = value?.href;
-
-  // ✅ if Sanity gives empty href, don’t render a link
   if (!href) return <>{children}</>;
 
   const isExternal = href.startsWith("http");
@@ -105,11 +92,11 @@ const LinkMark = ({ children, value }) => {
   );
 };
 
-/* -------------------------------------------------------
-   Footnote PortableText (inside notes only)
-------------------------------------------------------- */
+/* -------------------------------
+   FOOTNOTE PORTABLETEXT
+-------------------------------- */
 const footnoteComponents = {
-  types: { image: SanityImage }, // footnotes still use plain {type:"image"}
+  types: { image: SanityImage },
   block: {
     normal: ({ children }) => (
       <span className="fn-inline-block">{children}</span>
@@ -122,62 +109,53 @@ const footnoteComponents = {
   marks: { link: LinkMark },
 };
 
-/* -------------------------------------------------------
-   Carousel block (crossfade + caption + counter)
-   - Clicking image advances
-   - ❌ fullscreen button removed
-------------------------------------------------------- */
+/* -------------------------------
+   CAROUSEL BLOCK
+-------------------------------- */
 function CarouselBlock({ value }) {
   const rootRef = useRef(null);
   const [caption, setCaption] = useState("");
-  const [current, setCurrent] = useState(1); // 1-based
+  const [current, setCurrent] = useState(1);
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
-    // Prevent double-init (Astro swaps / strict mode)
     if (root.__inited) return;
     root.__inited = true;
-
-    const crossfadeMs = Number(value?.crossfadeMs ?? 6000);
 
     const imgs = Array.from(root.querySelectorAll(".pt-carousel-img"));
     if (imgs.length < 2) return;
 
-    // Build items (url + caption + alt)
-const items =
-  (value?.images || [])
-    .map((img) => {
-      // ✅ Sanity asset
-      const ref = img?.asset?._ref || img?.asset?._id;
-      if (ref) {
-        return {
-          url: urlFor({ _ref: ref })
-            .width(1920)
-            .auto("format")
-            .quality(85)
-            .url(),
-          caption: img?.caption || "",
-          alt: img?.alt || img?.caption || "",
-        };
-      }
+    const items =
+      (value?.images || [])
+        .map((img) => {
+          const ref = img?.asset?._ref || img?.asset?._id;
+          if (ref) {
+            return {
+              url: urlFor({ _ref: ref })
+                .width(1920)
+                .auto("format")
+                .quality(85)
+                .url(),
+              caption: img?.caption || "",
+              alt: img?.alt || img?.caption || "",
+            };
+          }
 
-      // ✅ Supabase direct url
-      const directUrl = img?.url || img?.image?.url;
-      if (directUrl) {
-        return {
-          url: directUrl,
-          caption: img?.caption || img?.image?.caption || "",
-          alt: img?.alt || img?.image?.alt || img?.caption || "",
-        };
-      }
+          const directUrl = img?.url || img?.image?.url;
+          if (directUrl) {
+            return {
+              url: directUrl,
+              caption: img?.caption || img?.image?.caption || "",
+              alt: img?.alt || img?.image?.alt || img?.caption || "",
+            };
+          }
 
-      return null;
-    })
-    .filter(Boolean) || [];
-
+          return null;
+        })
+        .filter(Boolean) || [];
 
     if (!items.length) return;
 
@@ -218,7 +196,7 @@ const items =
     function setCurrentItem(i) {
       const it = items[i];
       setCaption(it?.caption || "");
-      setCurrent(i + 1); // 1-based
+      setCurrent(i + 1);
     }
 
     (async () => {
@@ -303,18 +281,17 @@ const items =
   );
 }
 
-/* -------------------------------------------------------
-   PortableText components
-------------------------------------------------------- */
+/* -------------------------------
+   PORTABLETEXT COMPONENTS
+-------------------------------- */
 const components = {
   types: {
     contentImage: SanityImage,
-    image: SanityImage, // fallback (incl. footnotes)
+    image: SanityImage,
     carousel: CarouselBlock,
   },
   block: {
     h1: ({ children }) => <h1>{children}</h1>,
-    // ✅ MUST NOT be <p> because images/figure can be inside
     normal: ({ children }) => <div className="pt-block">{children}</div>,
     blockquote: ({ children }) => <blockquote>{children}</blockquote>,
   },
@@ -331,9 +308,9 @@ const components = {
   },
 };
 
-/* -------------------------------------------------------
-   Main component: lightbox + footnotes (mobile/desktop)
-------------------------------------------------------- */
+/* -------------------------------
+   MAIN
+-------------------------------- */
 export default function PostContent({ post }) {
   const containerRef = useRef(null);
   const scrollYRef = useRef(0);
@@ -343,9 +320,7 @@ export default function PostContent({ post }) {
     if (!container) return;
 
     /* ---------------------------
-       LIGHTBOX (single images only)
-       ✅ Carousel images ignored
-       ✅ Zoom disabled on phones
+       LIGHTBOX
     ---------------------------- */
     let lightbox = document.querySelector(".pt-lightbox");
     if (!lightbox) {
@@ -362,14 +337,13 @@ export default function PostContent({ post }) {
     }
 
     const lbImg = lightbox.querySelector(".pt-lightbox__img");
-    const lbCap = lightbox.querySelector(".pt-lightbox__caption"); // ✅ ADD
+    const lbCap = lightbox.querySelector(".pt-lightbox__caption");
     const backdrop = lightbox.querySelector(".pt-lightbox__backdrop");
 
     const lockScroll = () => {
       const y = window.scrollY || 0;
       scrollYRef.current = y;
 
-      // ✅ prevents jump-to-top on iOS/Safari
       document.body.style.position = "fixed";
       document.body.style.top = `-${y}px`;
       document.body.style.left = "0";
@@ -423,23 +397,15 @@ export default function PostContent({ post }) {
     };
 
     const onContainerClickForZoom = (e) => {
-      // ✅ disable image zoom on phones
       if (window.matchMedia("(max-width: 768px)").matches) return;
-
-      // ✅ ignore carousel block entirely (including caption area)
       if (e.target?.closest?.(".pt-carousel-wrap")) return;
 
       const img = e.target.closest("img");
       if (!img) return;
       if (!container.contains(img)) return;
-
-      // ✅ don't zoom carousel images (extra safety)
       if (img.classList.contains("pt-carousel-img")) return;
-
-      // ✅ don't zoom icons (if any)
       if (img.classList.contains("material-symbols-outlined")) return;
 
-      // ✅ stop link navigation (including any "#" cases)
       const a = img.closest("a");
       if (a) {
         e.preventDefault();
@@ -467,14 +433,11 @@ export default function PostContent({ post }) {
     container.addEventListener("click", onContainerClickForZoom);
     lightbox.addEventListener("click", onLightboxClick);
 
-    // Astro swaps: close before DOM changes
     const onBeforeSwap = () => closeLightbox();
     document.addEventListener("astro:before-swap", onBeforeSwap);
 
     /* ---------------------------
-       FOOTNOTES (mobile/desktop)
-       - Mobile: inline notes after the clicked mark
-       - Desktop: margin notes in left/right layers
+       FOOTNOTES
     ---------------------------- */
     const mql = window.matchMedia("(max-width: 768px)");
     let cleanupCurrentMode = null;
@@ -582,13 +545,12 @@ export default function PostContent({ post }) {
           const rectText = textEl.getBoundingClientRect();
           const top = rectText.top - rectContainer.top;
 
-          const text =
-            fn.querySelector(".footnote-text")?.textContent?.trim() || "";
-          const noteHTML = fn.querySelector(".footnote-note")?.innerHTML || "";
+          const text = textEl.textContent?.trim() || "";
+          const noteHTML = noteEl.innerHTML || "";
           const key = `${text}||${noteHTML}`;
 
-          const id = hashId(key);
-          const isRight = ((hash32(key) >>> 8) & 1) === 1;
+          const id = footnoteId(key);
+          const isRight = footnoteSide(key) === "right";
 
           const div = document.createElement("div");
           div.className = `margin-note ${
@@ -632,6 +594,28 @@ export default function PostContent({ post }) {
       layoutNotes();
       window.addEventListener("resize", layoutNotes);
 
+      /* relayout on media/font/layout shifts */
+      let raf = 0;
+      const scheduleLayout = () => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(layoutNotes);
+      };
+
+      const ro = new ResizeObserver(scheduleLayout);
+      ro.observe(container);
+
+      const imgs = Array.from(container.querySelectorAll("img"));
+      const onImg = () => scheduleLayout();
+      imgs.forEach((img) => {
+        if (img.complete) return;
+        img.addEventListener("load", onImg, { once: true });
+        img.addEventListener("error", onImg, { once: true });
+      });
+
+      if (document.fonts?.ready) {
+        document.fonts.ready.then(scheduleLayout).catch(() => {});
+      }
+
       const containerClickHandler = (ev) => {
         const t = ev.target;
         if (t?.closest?.(".footnote")) return;
@@ -643,9 +627,18 @@ export default function PostContent({ post }) {
       return () => {
         window.removeEventListener("resize", layoutNotes);
         container.removeEventListener("click", containerClickHandler);
+
+        cancelAnimationFrame(raf);
+        ro.disconnect();
+        imgs.forEach((img) => {
+          img.removeEventListener("load", onImg);
+          img.removeEventListener("error", onImg);
+        });
+
         container
           .querySelectorAll(".footnote")
           .forEach((fn) => (fn.onclick = null));
+
         rightLayer?.remove();
         leftLayer?.remove();
       };
@@ -663,22 +656,20 @@ export default function PostContent({ post }) {
     else mql.addListener(onMqlChange);
 
     /* ---------------------------
-       Cleanup
+       CLEANUP
     ---------------------------- */
     return () => {
-      // lightbox
       container.removeEventListener("click", onContainerClickForZoom);
       lightbox.removeEventListener("click", onLightboxClick);
       document.removeEventListener("astro:before-swap", onBeforeSwap);
 
-      // footnotes
       if (mql.removeEventListener)
         mql.removeEventListener("change", onMqlChange);
       else mql.removeListener(onMqlChange);
+
       cleanupCurrentMode?.();
       cleanupCurrentMode = null;
 
-      // safety: close if unmounting
       closeLightbox();
     };
   }, [post]);

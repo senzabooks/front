@@ -57,7 +57,7 @@ const dateText = (() => {
   }
 
   /* -------------------------------
-   ✅ BASE TYPOGRAPHY
+   TYPOGRAPHY BASIS
 -------------------------------- */
   :global(.post-content p) {
     white-space: pre-wrap;
@@ -71,13 +71,14 @@ const dateText = (() => {
 
   :global(.post-content blockquote) {
     font-weight: normal;
-    width: 100%;
-    display: flex;
+    // width: 100%;
+    display: block;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     margin-top: calc(var(--lh) / 2);
     margin-bottom: calc(var(--lh) / 2);
-    padding: 40px 0 40px 40px;
+    padding: 40px 40px 40px 40px;
   }
 
   /* PortableText blocks (your "paragraphs") */
@@ -87,12 +88,10 @@ const dateText = (() => {
   }
 
   /* -------------------------------
-   ✅ IMAGE + CAROUSEL SPACING FIX
-   - text <-> media = 40px
-   - media <-> media = 40px (NOT 80)
+    IMAGE + CAROUSEL SPACING FIX
 -------------------------------- */
 
-  /* ✅ NEVER give spacing to <img> directly */
+  /* never apply spacing to img */
   :global(.post-content img) {
     width: 100%;
     border-radius: var(--br);
@@ -101,19 +100,32 @@ const dateText = (() => {
     display: block;
   }
 
-  /* ✅ MAIN image wrapper (figure) */
+  /* main image wrapper (figure) */
   :global(.post-content figure.pt-image) {
-    /* override your inline style margin:"8px auto" */
     margin: 40px auto !important;
     cursor: zoom-in;
   }
 
-  /* ✅ Carousel wrapper controls spacing (includes caption) */
+  :global(.post-content figure.pt-image) {
+  margin: 40px auto !important;
+  cursor: zoom-in;
+}
+
+/* no margin on footnote */
+:global(.post-content .footnote-layer--right figure.pt-image),
+:global(.post-content .footnote-layer--left figure.pt-image),
+:global(.post-content .margin-note figure.pt-image),
+:global(.post-content .inline-footnote figure.pt-image) {
+  margin:10px 0 10px 0 !important;
+  cursor: default;
+}
+
+  /* carousel wrapper controls spacing (includes caption) */
   :global(.post-content .pt-carousel-wrap) {
     margin: 40px 0;
   }
 
-  /* carousel box itself should NOT add extra spacing */
+  /* carousel box does not add spacing */
   :global(.post-content .pt-carousel) {
     position: relative;
     width: 100%;
@@ -121,10 +133,10 @@ const dateText = (() => {
     border-radius: var(--br);
     overflow: hidden;
     cursor: e-resize;
-    margin: 0 !important; /* ✅ spacing comes from wrap */
+    margin: 0 !important;
   }
 
-  /* ✅ remove double gap when media follows media */
+  /* remove double gap when media follows media */
   :global(.post-content figure.pt-image + figure.pt-image) {
     margin-top: 0 !important;
   }
@@ -136,7 +148,7 @@ const dateText = (() => {
     margin-top: 0 !important;
   }
 
-  /* caption under images + carousels */
+  /* caption under images and carousels */
   :global(.post-content .pt-caption) {
     display: block;
     width: 100%;
@@ -146,7 +158,7 @@ const dateText = (() => {
   }
 
   /* -------------------------------
-   ✅ CAROUSEL IMAGES
+    CAROUSEL IMAGES
 -------------------------------- */
   :global(.post-content .pt-carousel-img) {
     position: absolute;
@@ -182,7 +194,7 @@ const dateText = (() => {
   }
 
   /* -------------------------------
-   ✅ FOOTNOTES
+   FOOTNOTES
 -------------------------------- */
   :global(.post-content .footnote-text) {
     color: var(--footnote-gray);
@@ -201,7 +213,7 @@ const dateText = (() => {
   :global(.post-content .footnote-layer--right),
   :global(.post-content .footnote-layer--left) {
     position: absolute;
-    top: 0;
+    top: 5px;
     width: calc((100vw - var(--column-width)) / 2 - 26px);
     pointer-events: none;
     z-index: 10;
@@ -242,7 +254,7 @@ const dateText = (() => {
   }
 
   /* -------------------------------
-   ✅ LIGHTBOX
+   LIGHTBOX
 -------------------------------- */
   :global(html.pt-no-scroll),
   :global(body.pt-no-scroll) {
@@ -309,7 +321,7 @@ const dateText = (() => {
   }
 
   /* -------------------------------
-   ✅ MOBILE
+    MOBILE
 -------------------------------- */
   @media (max-width: 768px) {
     :global(.post-content .footnote-layer--right),
