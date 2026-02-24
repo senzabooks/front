@@ -64,6 +64,12 @@ body {
   }
 }
 
+@media (max-width: 560px) {
+  :root {
+    --pt: 150px;
+  }
+}
+
 ::-moz-selection {
   color: #ff0000;
   background: none;

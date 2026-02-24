@@ -6,15 +6,23 @@ const pathname = Astro.url.pathname;
 const cleanPath = (p) => (p === "/" ? "/" : p.replace(/\/+$/, ""));
 
 // Active if exact match or if current path is inside that section (e.g. /blog/post-1)
+// Keep Home active only on the homepage
 const isActive = (route) => {
-  const p = cleanPath(pathname);
-  return p === route || p.startsWith(route + "/");
+  const currentPath = cleanPath(pathname);
+
+  if (route === "/") return currentPath === "/";
+
+  return currentPath === route || currentPath.startsWith(route + "/");
 };
 
-const routes = ["/works", "/about", "/blog"];
+// add all to routes
+const routes = ["/", "/works", "/about", "/blog"];
 ---
 
 <ul class="nav-bar" id="navBar" data-routes={JSON.stringify(routes)}>
+  <li>
+    <a href="/" class:list={{ active: isActive("/") }}>Dzastins Zavadskis</a>
+  </li>
   <li>
     <a href="/works" class:list={{ active: isActive("/works") }}>Works</a>
   </li>
@@ -43,6 +51,7 @@ const routes = ["/works", "/about", "/blog"];
     transition:
       top 0.25s ease,
       opacity 0.25s ease;
+      padding-bottom: 80px;
   }
 
   .nav-bar--hidden {
@@ -172,4 +181,21 @@ const routes = ["/works", "/about", "/blog"];
       opacity: 1;
     }
   }
+
+  /* stack navigation */
+@media (max-width: 560px) {
+  .nav-bar {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 10px;
+    column-gap: 10px;
+
+    /* keep the wrapped nav centered as a block */
+    width: min(320px, calc(100vw - 24px));
+  }
+
+  .nav-bar li {
+    flex: 0 0 auto;
+  }
+}
 </style>
