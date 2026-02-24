@@ -66,6 +66,7 @@ if (isPublic) {
             && defined(slug.current)
             && defined(postDate)
             && !(_id in path("drafts.**"))
+            && isHidden != true
             && postDate < $d]
             | order(postDate desc)[0]{
               title,
@@ -77,6 +78,7 @@ if (isPublic) {
             && defined(slug.current)
             && defined(postDate)
             && !(_id in path("drafts.**"))
+            && isHidden != true
             && postDate > $d]
             | order(postDate asc)[0]{
               title,
@@ -99,6 +101,7 @@ if (isPublic) {
         && defined(slug.current)
         && defined(postDate)
         && !(_id in path("drafts.**"))
+        && isHidden != true
         && slug.current != $slug
       ]
       | order(postDate desc)[0]{
