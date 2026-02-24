@@ -52,34 +52,31 @@
   }
 
   function syncUnlockedUI() {
-    document.documentElement.classList.toggle(
-      "works-unlocked",
-      isUnlockedNow(),
-    );
+    document.documentElement.classList.toggle("works-unlocked", isUnlockedNow());
   }
 
-function handleUnlockRedirectParams() {
-  const url = new URL(window.location.href);
+  function handleUnlockRedirectParams() {
+    const url = new URL(window.location.href);
 
-  if (url.searchParams.get("unlock") === "open") {
-    openOverlay();
-    url.searchParams.delete("unlock");
-    window.history.replaceState({}, "", url.pathname + url.search);
+    if (url.searchParams.get("unlock") === "open") {
+      openOverlay();
+      url.searchParams.delete("unlock");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+
+    if (url.searchParams.get("unlock") === "ok") {
+      setUnlockedFor10Min();
+      syncUnlockedUI(); // ✅ IMPORTANT: reflect unlock immediately
+      url.searchParams.delete("unlock");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+
+    if (url.searchParams.get("unlock") === "fail") {
+      openOverlay();
+      url.searchParams.delete("unlock");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
   }
-
-  if (url.searchParams.get("unlock") === "ok") {
-    setUnlockedFor10Min();
-    url.searchParams.delete("unlock");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  }
-
-  if (url.searchParams.get("unlock") === "fail") {
-    openOverlay();
-    url.searchParams.delete("unlock");
-    window.history.replaceState({}, "", url.pathname + url.search);
-  }
-}
-
 
   function bindUnlockFormOnce() {
     const overlay = getOverlay();
