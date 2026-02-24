@@ -215,23 +215,22 @@ const hasCredit = !!post?.creditbox?.length;
     {/* ✅ localStorage unlock check */}
 <script is:inline>
   (function () {
-    const KEY = "private_ui_until";
-    const until = Number(localStorage.getItem(KEY) || 0);
-    const unlocked = Date.now() < until;
+    fetch("/.netlify/functions/private-ui-status", { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data?.unlocked) {
+          window.location.replace("/works?unlock=open");
+          return;
+        }
 
-    // ✅ If not unlocked, bounce back to Works and open modal
-    if (!unlocked) {
-      window.location.replace("/works?unlock=open");
-      return;
-    }
+        const lockedEl = document.querySelector("[data-private-locked]");
+        const postEl = document.querySelector("[data-private-post]");
+        if (!lockedEl || !postEl) return;
 
-    // ✅ If unlocked, show private post
-    const lockedEl = document.querySelector("[data-private-locked]");
-    const postEl = document.querySelector("[data-private-post]");
-    if (!lockedEl || !postEl) return;
-
-    lockedEl.style.display = "none";
-    postEl.style.display = "block";
+        lockedEl.style.display = "none";
+        postEl.style.display = "block";
+      })
+      .catch(() => window.location.replace("/works?unlock=open"));
   })();
 </script>
   </Layout>

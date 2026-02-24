@@ -10,9 +10,9 @@ exports.handler = async (event) => {
   const ok = expected.length > 0 && password === expected;
 
   // ✅ set cookie when ok (server can validate later)
-  const cookie = ok
-    ? "private_ui=1; Max-Age=600; Path=/; HttpOnly; SameSite=Lax"
-    : "private_ui=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax";
+const cookie = ok
+  ? "private_ui=1; Max-Age=600; Path=/; HttpOnly; SameSite=Lax; Secure"
+  : "private_ui=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure";
 
   const accept = event.headers?.accept || event.headers?.Accept || "";
   const wantsJson = accept.includes("application/json");
