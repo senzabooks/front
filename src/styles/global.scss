@@ -11,8 +11,8 @@
   --img-h-l: calc(var(--lh) * 18);
   --pt: 100px;
 
-  --pill-bg: rgba(255, 255, 255, 0.35);
-  --backdrop-filter: blur(2px);
+  --pill-bg: rgba(255, 255, 255, 0.65);
+  --backdrop-filter: blur(12px);
   --box-shadow: 0 0 6px rgba(122, 122, 122, 0.2);
   --backdrop-filter-pressed: blur(8px);
 }
@@ -30,7 +30,11 @@ html {
 }
 
 body {
-  font-family: "Neue Haas", -apple-system, system-ui, sans-serif;
+  font-family:
+    "Neue Haas",
+    -apple-system,
+    system-ui,
+    sans-serif;
   font-size: var(--fz);
   line-height: var(--lh);
 }

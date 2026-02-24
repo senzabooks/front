@@ -3,6 +3,9 @@ import { client } from "../lib/sanity.js";
 import { urlFor } from "../lib/sanity.js";
 import Layout from "../layouts/FullBleedLayout.astro";
 
+//------
+//fetch homepage images from Sanity
+//------
 const data = await client.fetch(`
   *[_type == "homepage"][0]{
     featuredImages[]{
@@ -17,11 +20,16 @@ const data = await client.fetch(`
 
 const images = (data?.featuredImages ?? []).filter((img) => img?.asset);
 
+//------
+//build low-res placeholder URLs
+//------
 const lowResUrls = images.map((img) =>
   urlFor(img.asset).width(64).quality(20).url()
 );
 
-/* Lower hi-res quality to reduce transferred bytes */
+//------
+//build hi-res URLs with reduced quality for bandwidth savings
+//------
 const hiResUrls = images.map((img) =>
   urlFor(img.asset).width(1920).quality(75).url()
 );
@@ -53,45 +61,42 @@ const hiResUrls = images.map((img) =>
   (function () {
     const cleanupMap = new WeakMap();
 
-    function getScrollContainer(containerElement) {
-      const preferredScroller = document.getElementById("mainScroller");
-      if (preferredScroller instanceof HTMLElement) return preferredScroller;
+    //------
+    //find the active scroll root for intersection observer
+    //------
+    function getObserverRoot(containerElement) {
+      const mainScroller = document.getElementById("mainScroller");
+      if (mainScroller instanceof HTMLElement) return mainScroller;
 
       let parentElement = containerElement.parentElement;
       while (parentElement) {
         const overflowYValue = getComputedStyle(parentElement).overflowY;
-        const canScrollVertically = overflowYValue === "auto" || overflowYValue === "scroll";
-        const hasScrollableContent = parentElement.scrollHeight > parentElement.clientHeight;
-
-        if (canScrollVertically && hasScrollableContent) return parentElement;
+        const isScrollableStyle = overflowYValue === "auto" || overflowYValue === "scroll";
+        if (isScrollableStyle) return parentElement;
         parentElement = parentElement.parentElement;
       }
 
       return null;
     }
 
+    //------
+    //initialize progressive image loading
+    //------
     function init() {
       const imageContainer = document.getElementById("imageScroll");
       if (!(imageContainer instanceof HTMLElement)) return;
 
-      if (imageContainer.dataset.inf3Inited === "1") return;
-      imageContainer.dataset.inf3Inited = "1";
+      if (imageContainer.dataset.progressiveImagesInited === "1") return;
+      imageContainer.dataset.progressiveImagesInited = "1";
 
-      const initialImages = Array.from(imageContainer.querySelectorAll("img.scroll-image"));
-      if (!initialImages.length) return;
+      const imageElements = Array.from(imageContainer.querySelectorAll("img.scroll-image"));
+      if (!imageElements.length) return;
 
-      const scrollContainer = getScrollContainer(imageContainer);
+      const observerRoot = getObserverRoot(imageContainer);
 
-      function getScrollOffset() {
-        return scrollContainer ? scrollContainer.scrollTop : window.scrollY;
-      }
-
-      function setScrollOffset(nextScrollOffset) {
-        if (scrollContainer) scrollContainer.scrollTop = nextScrollOffset;
-        else window.scrollTo(0, nextScrollOffset);
-      }
-
-      /* Share hi-res preloads by URL to limit repeated fetch/decode work */
+      //------
+      //cache hi-res preloads by URL to avoid repeated preload work
+      //------
       const hiResLoadCache = new Map();
 
       function preloadHiResOnce(hiResUrl) {
@@ -109,39 +114,54 @@ const hiResUrls = images.map((img) =>
         return loadPromise;
       }
 
-      /* Upgrade images near viewport from low-res to hi-res */
+      //------
+      //upgrade a single image from low-res to hi-res
+      //------
+      function upgradeImage(imageElement) {
+        if (!(imageElement instanceof HTMLImageElement)) return;
+
+        const hiResUrl = imageElement.getAttribute("data-hi");
+        if (!hiResUrl) return;
+
+        if (imageElement.dataset.upgraded === "1") return;
+        if (imageElement.dataset.upgrading === "1") return;
+
+        imageElement.dataset.upgrading = "1";
+
+        preloadHiResOnce(hiResUrl)
+          .then(() => {
+            imageElement.src = hiResUrl;
+            imageElement.classList.remove("is-loading");
+            imageElement.dataset.upgraded = "1";
+            delete imageElement.dataset.upgrading;
+          })
+          .catch(() => {
+            delete imageElement.dataset.upgrading;
+          });
+      }
+
+      //------
+      //upgrade images when they approach the viewport
+      //------
       const hiResObserver = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
             if (!entry.isIntersecting) continue;
-
-            const imageElement = entry.target;
-            if (!(imageElement instanceof HTMLImageElement)) continue;
-
-            const hiResUrl = imageElement.getAttribute("data-hi");
-            if (!hiResUrl || imageElement.dataset.upgraded === "1") {
-              hiResObserver.unobserve(imageElement);
-              continue;
-            }
-
-            imageElement.dataset.upgraded = "1";
-
-            preloadHiResOnce(hiResUrl)
-              .then(() => {
-                imageElement.src = hiResUrl;
-                imageElement.classList.remove("is-loading");
-                hiResObserver.unobserve(imageElement);
-              })
-              .catch(() => {
-                delete imageElement.dataset.upgraded;
-              });
+            upgradeImage(entry.target);
           }
         },
-        { root: scrollContainer, rootMargin: "300px 0px", threshold: 0 }
+        {
+          root: observerRoot,
+          rootMargin: "400px 0px",
+          threshold: 0
+        }
       );
 
-      function observeHiResImages(scopeElement) {
-        scopeElement.querySelectorAll("img.scroll-image").forEach((imageElement) => {
+      //------
+      //register images with the observer
+      //------
+      function observeImages() {
+        imageContainer.querySelectorAll("img.scroll-image").forEach((imageElement) => {
           if (!(imageElement instanceof HTMLImageElement)) return;
           if (!imageElement.getAttribute("data-hi")) return;
           if (imageElement.dataset.upgraded === "1") return;
@@ -149,114 +169,23 @@ const hiResUrls = images.map((img) =>
         });
       }
 
-      const middleBlockElement = document.createElement("div");
-      middleBlockElement.className = "image-scroll-block";
+      observeImages();
 
-      while (imageContainer.firstChild) {
-        middleBlockElement.appendChild(imageContainer.firstChild);
-      }
-      imageContainer.appendChild(middleBlockElement);
-
-      const beforeBlockClone = middleBlockElement.cloneNode(true);
-      const afterBlockClone = middleBlockElement.cloneNode(true);
-
-      if (!(beforeBlockClone instanceof HTMLElement) || !(afterBlockClone instanceof HTMLElement)) return;
-
-      beforeBlockClone.setAttribute("aria-hidden", "true");
-      afterBlockClone.setAttribute("aria-hidden", "true");
-
-      imageContainer.insertBefore(beforeBlockClone, middleBlockElement);
-      imageContainer.appendChild(afterBlockClone);
-
-      observeHiResImages(imageContainer);
-
-      function waitForLayout() {
-        return new Promise((resolve) => {
-          const startTime = performance.now();
-
-          (function checkLayout() {
-            const measuredHeight = middleBlockElement.getBoundingClientRect().height;
-
-            if (measuredHeight > 0) {
-              resolve(undefined);
-              return;
-            }
-
-            if (performance.now() - startTime > 2000) {
-              resolve(undefined);
-              return;
-            }
-
-            requestAnimationFrame(checkLayout);
-          })();
-        });
-      }
-
-      let recenterTickScheduled = false;
-
-      function recenterIfNeeded() {
-        if (recenterTickScheduled) return;
-        recenterTickScheduled = true;
-
-        requestAnimationFrame(() => {
-          recenterTickScheduled = false;
-
-          const middleBlockHeight = middleBlockElement.getBoundingClientRect().height;
-          if (!middleBlockHeight) return;
-
-          const currentScrollOffset = getScrollOffset();
-
-          const lowerBound = 0.5 * middleBlockHeight;
-          const upperBound = 1.5 * middleBlockHeight;
-
-          if (currentScrollOffset < lowerBound) {
-            setScrollOffset(currentScrollOffset + middleBlockHeight);
-          } else if (currentScrollOffset > upperBound) {
-            setScrollOffset(currentScrollOffset - middleBlockHeight);
-          }
-        });
-      }
-
-      function addScrollListener() {
-        const scrollTarget = scrollContainer || window;
-        scrollTarget.addEventListener("scroll", recenterIfNeeded, { passive: true });
-        return () => scrollTarget.removeEventListener("scroll", recenterIfNeeded);
-      }
-
-      let removeScrollListener = null;
-
-      waitForLayout().then(() => {
-        const middleBlockHeight = middleBlockElement.getBoundingClientRect().height;
-
-        setScrollOffset(middleBlockHeight);
-
-        requestAnimationFrame(() => setScrollOffset(middleBlockHeight));
-
-        removeScrollListener = addScrollListener();
-      });
-
+      //------
+      //clean up observer and init marker on page transitions
+      //------
       function destroy() {
-        if (typeof removeScrollListener === "function") removeScrollListener();
         hiResObserver.disconnect();
-
-        if (beforeBlockClone.parentNode) beforeBlockClone.parentNode.removeChild(beforeBlockClone);
-        if (afterBlockClone.parentNode) afterBlockClone.parentNode.removeChild(afterBlockClone);
-
-        const existingMiddleBlock = imageContainer.querySelector(".image-scroll-block");
-        if (existingMiddleBlock instanceof HTMLElement) {
-          while (existingMiddleBlock.firstChild) {
-            imageContainer.insertBefore(existingMiddleBlock.firstChild, existingMiddleBlock);
-          }
-          existingMiddleBlock.remove();
-        }
-
-        delete imageContainer.dataset.inf3Inited;
+        delete imageContainer.dataset.progressiveImagesInited;
         cleanupMap.delete(imageContainer);
       }
 
       cleanupMap.set(imageContainer, destroy);
     }
 
+    //------
+    //run cleanup before Astro swaps pages
+    //------
     function cleanup() {
       const imageContainer = document.getElementById("imageScroll");
       if (!(imageContainer instanceof HTMLElement)) return;
@@ -265,36 +194,45 @@ const hiResUrls = images.map((img) =>
       if (typeof cleanupFn === "function") cleanupFn();
     }
 
+    //------
+    //bind Astro lifecycle handlers once
+    //------
     const rootElement = document.documentElement;
-    if (rootElement.dataset.inf3Bound !== "1") {
-      rootElement.dataset.inf3Bound = "1";
+    if (rootElement.dataset.progressiveImagesBound !== "1") {
+      rootElement.dataset.progressiveImagesBound = "1";
       document.addEventListener("astro:page-load", init);
       document.addEventListener("astro:after-swap", init);
       document.addEventListener("astro:before-swap", cleanup);
     }
 
+    //------
+    //initialize on first page load
+    //------
     init();
   })();
 </script>
 
 <style lang="scss" is:global>
-  html,
-  body {
-    margin: 0;
-    overflow-x: hidden;
-  }
-
+  // ------
+  // keep image column full width
+  // ------
   .image-scroll {
     width: 100vw;
   }
 
+  //------
+  //render responsive images in a vertical stack
+  //------
   .scroll-image {
     display: block;
-    width: 100%;
+    width: 100vw;
     height: auto;
     object-fit: contain;
   }
 
+  //------
+  //show blur while hi-res image is loading
+  //------
   .scroll-image.is-loading {
     filter: blur(6px);
     transform: scale(1.01);
