@@ -27,6 +27,8 @@ const routes = ["/works", "/about", "/blog"];
 </ul>
 
 <style lang="scss">
+  /* Nav.astro — FINAL CSS (full) */
+
   .nav-bar {
     position: fixed;
     top: 30px;
@@ -89,23 +91,8 @@ const routes = ["/works", "/about", "/blog"];
     transition: opacity 0.15s ease;
   }
 
-  /* show pill on hover */
-  .nav-bar li:hover a::before {
-    opacity: 1;
-  }
-
   /* active pill default */
   .nav-bar a.active::before {
-    opacity: 1;
-  }
-
-  /* when hovering the nav, hide active pill (so only hovered shows) */
-  .nav-bar:hover a.active::before {
-    opacity: 0;
-  }
-
-  /* but if hovering the active item itself, show it */
-  .nav-bar:hover li:hover a.active::before {
     opacity: 1;
   }
 
@@ -118,26 +105,66 @@ const routes = ["/works", "/about", "/blog"];
     background: rgba(255, 255, 255, 0.65);
   }
 
-  /* hovered item becomes pressed in (and more opaque) */
-  .nav-bar li:hover a {
-    box-shadow: 0 0 3px rgba(122, 122, 122, 0.4) inset;
-  }
-  .nav-bar li:hover {
-    // background: rgba(255, 255, 255, 0.65);
-    backdrop-filter: var(--backdrop-filter-pressed);
-    -webkit-backdrop-filter: var(--backdrop-filter-pressed);
-  }
-
-  /* ---------- TOUCH DEVICES ---------- */
-  @media (hover: none) {
-    .nav-bar a {
-      transition: none;
-      color: #000 !important;
+  /* =========================================================
+   HOVER CAPABLE DEVICES ONLY (mouse/trackpad)
+   Prevents sticky :hover problems on touch
+   ========================================================= */
+  @media (hover: hover) and (pointer: fine) {
+    /* show pill on hover */
+    .nav-bar li:hover a::before {
+      opacity: 1;
     }
 
-    .nav-bar:hover a,
-    .nav-bar a:hover {
-      color: inherit !important;
+    /* when hovering the nav, hide active pill (so only hovered shows) */
+    .nav-bar:hover a.active::before {
+      opacity: 0;
+    }
+
+    /* but if hovering the active item itself, show it */
+    .nav-bar:hover li:hover a.active::before {
+      opacity: 1;
+    }
+
+    /* hovered item becomes pressed in */
+    .nav-bar li:hover a {
+      box-shadow: 0 0 3px rgba(122, 122, 122, 0.4) inset;
+    }
+
+    .nav-bar li:hover {
+      backdrop-filter: var(--backdrop-filter-pressed);
+      -webkit-backdrop-filter: var(--backdrop-filter-pressed);
+    }
+  }
+
+  /* =========================================================
+   TOUCH DEVICES
+   Make hover effects non-sticky; use :active for press
+   ========================================================= */
+  @media (hover: none) and (pointer: coarse) {
+    /* never hide the active pill on touch */
+    .nav-bar:hover a.active::before {
+      opacity: 1;
+    }
+
+    /* cancel any sticky hover press-in */
+    .nav-bar li:hover a {
+      box-shadow: var(--box-shadow);
+    }
+    .nav-bar li:hover {
+      backdrop-filter: var(--backdrop-filter);
+      -webkit-backdrop-filter: var(--backdrop-filter);
+    }
+    .nav-bar li:hover a::before {
+      opacity: 0;
+    }
+
+    /* show press only while finger is down */
+    .nav-bar li:active a {
+      box-shadow: 0 0 3px rgba(122, 122, 122, 0.4) inset;
+    }
+    .nav-bar li:active {
+      backdrop-filter: var(--backdrop-filter-pressed);
+      -webkit-backdrop-filter: var(--backdrop-filter-pressed);
     }
 
     /* keep active pill visible on touch */
